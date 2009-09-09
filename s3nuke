@@ -79,6 +79,7 @@ begin
 rescue RightAws::AwsError => e
   puts e.message
   puts opts
+  exit
 end
 
 buckets.each do |bucket|
