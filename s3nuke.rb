@@ -72,7 +72,7 @@ end
 
 # Make a connection for bucket deletion
 log = Logger.new(STDOUT)
-log.level = Logger::WARN
+log.level = Logger::ERROR
 mains3 = RightAws::S3Interface.new(access_key, secret_key, :multi_thread => true, :port => 80, :protocol => 'http', :logger => log)
 begin
   mains3.list_all_my_buckets  # Confirm credentials
@@ -101,45 +101,28 @@ buckets.each do |bucket|
     prefix = ''
     begin
       keys = s3.list_bucket(bucket, :marker => prefix)
-      prefix = keys.last[:key]
+      prefix = keys.last[:key] if keys
       keys.each do |key|
         queue.enq(key[:key])
         total_listed += 1
       end
-    end until keys.empty?
-    queue.enq(:END_OF_BUCKET)
+    end while keys
+    thread_count.times {queue.enq(:END_OF_BUCKET)}
   end
-
-
 
   thread_count.times do |count|
     threads << Thread.new(count) do |number|
       Thread.current[:number] = number
       print "Starting deletion thread #{number}...\n"
       s3 = RightAws::S3Interface.new(access_key, secret_key, :multi_thread => true, :port => 80, :protocol => 'http', :logger => log)
-      key = ''
-      until (key = queue.deq) == :END_OF_BUCKET
-        s3.delete(bucket, key)
-        mutex_total.synchronize {total_deleted += object_count}
-      end
-      print "Deleted #{total_deleted} out of #{total_listed}\n" if (rand(1000) == 1)
-      until done do
-        mutex_retrieve.synchronize do
-          Thread.current[:keys] = s3.list_bucket(bucket, :marker => prefix)
-          if Thread.current[:keys].empty?
-            done = true
-          else
-            prefix = Thread.current[:keys].last.to_s
-          end
-        end 
-        object_count = Thread.current[:keys].count
-        Thread.current[:keys].each do |key|
-          s3.delete(bucket, key.to_s)
+      begin
+        key = queue.deq
+        unless key == :END_OF_BUCKET
+          s3.delete(bucket, key) 
+          mutex_total.synchronize {total_deleted += 1}
+          print "Deleted #{total_deleted} out of #{total_listed}\n" if (rand(1000) == 1)
         end
-        mutex_total.synchronize {total_deleted += object_count}
-        print "#{total_deleted} objects deleted (#{number})\n"
-      end
-      print "Thread #{number} complete!\n"
+      end until (key == :END_OF_BUCKET)
     end  
   end
   
@@ -151,6 +134,6 @@ buckets.each do |bucket|
     end
   end
   
-  puts "Bucket #{bucket} deleted!" if mains3.force_delete_bucket(bucket)
+  puts "Bucket #{bucket} deleted!" if mains3.delete_bucket(bucket)
   puts
 end
