@@ -101,12 +101,12 @@ buckets.each do |bucket|
     prefix = ''
     begin
       keys = s3.list_bucket(bucket, :marker => prefix)
-      prefix = keys.last[:key] if keys
+      prefix = keys.last[:key] unless keys.empty?
       keys.each do |key|
         queue.enq(key[:key])
         total_listed += 1
       end
-    end while keys
+    end until keys.empty?
     thread_count.times {queue.enq(:END_OF_BUCKET)}
   end
 
@@ -134,6 +134,7 @@ buckets.each do |bucket|
     end
   end
   
-  puts "Bucket #{bucket} deleted!" if mains3.delete_bucket(bucket)
+  # Clean up any stragglers and kill the bucket
+  puts "Bucket #{bucket} deleted!" if mains3.force_delete_bucket(bucket)
   puts
 end
