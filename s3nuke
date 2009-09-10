@@ -3,6 +3,7 @@
 # s3nuke.rb
 # by: Stephen Eley (sfeley@gmail.com)
 # A simple script to delete a very large bucket in Amazon S3.
+# Licensed under the Apache License v2.0 (http://apache.org/licenses)
 #
 # RATIONALE: Deleting buckets containing many thousands or millions of
 # objects in S3 is a huge pain, because the buckets must be empty before
@@ -20,6 +21,7 @@ begin
   require 'right_aws'
 rescue LoadError
   puts "Missing the RightAWS gem! Try: sudo gem install right_aws"
+  puts "or for Ruby 1.9: sudo gem install dmarkow-right_aws --source http://gems.github.com"
 end
 
 access_key = nil
